@@ -8,13 +8,13 @@ from PIL import Image, UnidentifiedImageError
 import time
 import logging
 
-# --- BLIP captioning (no pipeline, avoids "image-to-text" task errors) ---
+
 import torch
 from transformers import BlipProcessor, BlipForConditionalGeneration
 
 app = FastAPI()
 
-# ---------- CONFIG ----------
+
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -34,7 +34,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
-# ---------- CAPTION MODEL ----------
+
 BLIP_MODEL_ID = "Salesforce/blip-image-captioning-base"
 processor: BlipProcessor | None = None
 model: BlipForConditionalGeneration | None = None
@@ -123,7 +123,7 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     t0 = time.perf_counter()
     processed_at = _now_utc_iso()
 
-    # 1) Validate declared content-type first
+    # Validate 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Only JPG and PNG are supported")
 
@@ -136,14 +136,14 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
         file.filename, file.content_type, image_id
     )
 
-    # 2) Read bytes and enforce max size
+    
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_BYTES} bytes)")
 
     saved_path.write_bytes(data)
 
-    # 3) Validate it is a real image
+    # Validate a real image
     try:
         with Image.open(saved_path) as img:
             img.verify()
@@ -151,7 +151,7 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
         saved_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Invalid image file")
 
-    # 4) Gather metadata + make thumbnails + caption
+    # Gather metadata and make captions and Thumbnails
     try:
         with Image.open(saved_path) as img:
             width, height = img.size
@@ -169,18 +169,18 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
             "file_mtime_utc": file_mtime_utc,
         }
 
-        # Thumbnails always stored in same ext as original upload
+        
         small_path = UPLOAD_DIR / f"{image_id}_small.{ext}"
         medium_path = UPLOAD_DIR / f"{image_id}_medium.{ext}"
 
-        # Small
+        
         with Image.open(saved_path) as img:
             if ext == "jpg" and img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
             img.thumbnail((128, 128))
             img.save(small_path)
 
-        # Medium
+        
         with Image.open(saved_path) as img:
             if ext == "jpg" and img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
@@ -193,7 +193,7 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
             "medium": f"{base}/api/images/{image_id}/thumbnails/medium",
         }
 
-        # Caption analysis
+        
         caption = caption_image(saved_path)
         analysis = {"caption": caption}
 
@@ -222,7 +222,7 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         logger.exception("Processing failed for image_id=%s", image_id)
 
-        # Try to clean partial files
+        
         for p in [
             saved_path,
             UPLOAD_DIR / f"{image_id}_small.{ext}",
